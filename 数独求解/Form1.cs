@@ -174,8 +174,20 @@ namespace 数独求解
             sudoku = new Sudoku(GetArray());
             sudoku.SendMessage += this.MessageCallback;
             sudoku.UpdateCell += this.UpdateCellCallback;
+            sudoku.UpdateGrid += this.UpdateGridCallback;
             //Task.Run(new Action(() => { sudoku.GetAnswer(); }));
             new Thread(() => { sudoku.GetAnswer(); }).Start();
+        }
+
+        private void UpdateGridCallback(Cell[,] cells)
+        {
+            for (int i = 0; i < 9; i++)
+            {
+                for (int j = 0; j < 9; j++)
+                {
+                    dataGridView1.Rows[i].Cells[j].Value = cells[i, j].Value + "";
+                }
+            }
         }
 
         private int[,] GetArray()

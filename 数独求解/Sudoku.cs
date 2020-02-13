@@ -10,13 +10,15 @@ namespace 数独求解
     {
         Cell[,] cells;
         Dictionary<int, List<Cell>> blockDic;
+        List<Cell> unassignedCells;//未确定值的格子
 
         public event Action<string> SendMessage;//向界面发送消息
 
-        //public event Action<Cell[,]> UpdateGrid;//更新界面显示
+        public event Action<Cell[,]> UpdateGrid;//更新界面显示
 
         public event Action<Cell> UpdateCell;//更新单元格
 
+        //构造函数
         public Sudoku(int[,] array)
         {
             if(array.GetLength(0)!=9 || array.GetLength(1) != 9)
@@ -25,22 +27,29 @@ namespace 数独求解
             }
             this.cells = new Cell[9, 9];
             this.blockDic = new Dictionary<int, List<Cell>>();
+            this.unassignedCells = new List<Cell>();
             for (int i = 0; i < 9; i++)
             {
                 for (int j = 0; j < 9; j++)
                 {
-                    int value = array[i, j];
-                    this.cells[i, j] = new Cell(value,i,j);
-                    int blockIndex = this.cells[i, j].blockIndex;
+                    Cell tempCell= new Cell(array[i, j], i, j);
+                    
+                    if (tempCell.Value == 0)//未确定值的格子
+                    {
+                        unassignedCells.Add(tempCell);
+                    }
+                    int blockIndex = tempCell.blockIndex;
                     if(blockDic.ContainsKey(blockIndex))
                     {
-                        blockDic[blockIndex].Add(this.cells[i, j]);
+                        blockDic[blockIndex].Add(tempCell);
                     }
                     else
                     {
-                        blockDic[blockIndex] = new List<Cell> { this.cells[i, j] };
+                        blockDic[blockIndex] = new List<Cell> { tempCell };
                     }
-                    this.cells[i, j].ValueAssigned += this.ValueAssignedCallback;
+                    tempCell.ValueAssigned += this.ValueAssignedCallback;
+
+                    this.cells[i, j] = tempCell;
                 }
             }
         }       
@@ -72,8 +81,76 @@ namespace 数独求解
                         }
                     }
                 }
-            }                  
+            }
+            bool result=Backtrace(0, unassignedCells);
+            if(result==true)
+            {
+                UpdateGrid(this.cells);
+            }           
         }
+
+        private bool Backtrace(int index,List<Cell> unassignedCells)
+        {
+            if(index==unassignedCells.Count)
+            {
+                return true;
+            }
+            Cell tempCell = unassignedCells[index];
+            for (int i = 0; i < tempCell.candidates.Count; i++)
+            {
+                tempCell.Value = tempCell.candidates[i];
+                tempCell.assigned = true;
+                if(IsRowValid(tempCell) && IsColomnValid(tempCell) && IsBlockValid(tempCell) && Backtrace(index + 1, unassignedCells))
+                {
+                    return true;
+                }               
+                tempCell.Value = 0;
+                tempCell.assigned = false;
+            }
+            return false;
+        }
+        //判断当前格子的值与该行的其他格子是否有冲突
+        private bool IsRowValid(Cell currentCell)
+        {
+            int rowIndex = currentCell.rowIndex;
+            for (int i = 0; i < 9; i++)
+            {
+                if (cells[rowIndex, i] != currentCell && cells[rowIndex, i].Value == currentCell.Value)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        //判断当前格子的值与该列的其他格子是否有冲突
+        private bool IsColomnValid(Cell currentCell)
+        {
+            int colomnIndex = currentCell.colomIndex;
+            for (int i = 0; i < 9; i++)
+            {
+                if(cells[i,colomnIndex]!=currentCell && cells[i,colomnIndex].Value==currentCell.Value)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        //判断当前格子的值与所在宫的其他格子是否有冲突
+        private bool IsBlockValid(Cell currentCell)
+        {
+            List<Cell> tempList = blockDic[currentCell.blockIndex];
+            foreach (var cell in tempList)
+            {
+                if (cell != currentCell && cell.Value == currentCell.Value)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+
+
         //行排除
         private bool RowEliminate(Cell currentCell)
         {
@@ -129,6 +206,7 @@ namespace 数独求解
         //
         private void ValueAssignedCallback(Cell cell)
         {
+            unassignedCells.Remove(cell);//将已确定值的格子从待定格子中删除
             UpdateCell(cell);
         }
 
@@ -136,7 +214,7 @@ namespace 数独求解
     class Cell
     {
         public int Value { get; set; }//值
-        public HashSet<int> candidates;//候选数
+        public List<int> candidates;//候选数
         public bool assigned { get; set; }//值已是否已确定
 
         public int rowIndex;//行索引
@@ -160,7 +238,7 @@ namespace 数独求解
             if(num==0)
             {
                 this.assigned = false;
-                this.candidates = new HashSet<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+                this.candidates = new List<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             }
             else
             {
@@ -175,7 +253,7 @@ namespace 数独求解
             if(candidates.Count==1)
             {
                 this.Value = candidates.First();
-                assigned = true;
+                this.assigned = true;
                 ValueAssigned(this);
             }
             return result;
